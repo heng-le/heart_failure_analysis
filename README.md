@@ -1,4 +1,4 @@
-# heart_failure_analysis
+# Analysis of gene expression in heart failure
 For this project, we aim to analyse publicly available gene expression datasets from patient samples to understand disease mechanisms and identify key regulatory genes and pathways using various bioinformatic tools and integration with ChIP-Seq/CLIP-Seq data.
 
 
