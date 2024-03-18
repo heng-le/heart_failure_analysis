@@ -1,0 +1,24 @@
+---
+title: "Final Project EDA"
+author: "Heng-Le"
+date: "2024-03-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+# finding metadata on series
+library(GEOquery)
+gse <- getGEO("GSE141910")
+gse.phenodata <- pData(phenoData(gse[[1]]))
+gse.phenodata
+```
+```{r}
+
+```
+
+
