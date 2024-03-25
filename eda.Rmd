@@ -7,18 +7,55 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
 
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(ggbiplot)
+library(GEOquery)
+library(DESeq2)
+library(EnhancedVolcano)
+library(apeglm)
 ```
 
 ```{r}
 # finding metadata on series
-library(GEOquery)
-gse <- getGEO("GSE141910")
-gse.phenodata <- pData(phenoData(gse[[1]]))
-gse.phenodata
+data <- getGEO("GSE141910")
+data
+data$GSE141910_series_matrix.txt.gz@experimentData
 ```
 ```{r}
-
+clindata <- data[["GSE141910_series_matrix.txt.gz"]]@phenoData@data
+dim(clindata)
+colnames(clindata)
 ```
 
+```{r}
+t(clindata[1,])
+##random columns
+head(clindata[,c(1,8,40,39,42)])
+table(clindata$`etiology:ch1`)
+table(clindata$`race:ch1`)
+table(clindata$`Sex:ch1`)
+table(clindata$`age:ch1`)
+```
+```{r}
+## Let's get the Gene Expression data too
+exp <- data[["GSE141910_series_matrix.txt.gz"]]@assayData$exprs
+dim(exp)
+```
+
+```{r}
+# load counts table from GEO
+urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
+path <- paste(urld, "acc=GSE141910", "file=GSE141910_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&")
+tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames=1)
+head(tbl)
+dim(tbl)
+
+raw_counts <- read.delim(path, stringsAsFactors=FALSE, sep = " ")
+dim(raw_counts)
+head(raw_counts[,c(1:4)])
+```
 
