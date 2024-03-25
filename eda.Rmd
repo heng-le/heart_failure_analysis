@@ -44,18 +44,39 @@ table(clindata$`age:ch1`)
 ## Let's get the Gene Expression data too
 exp <- data[["GSE141910_series_matrix.txt.gz"]]@assayData$exprs
 dim(exp)
+head(exp)
 ```
 
 ```{r}
-# load counts table from GEO
-urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
-path <- paste(urld, "acc=GSE141910", "file=GSE141910_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&")
-tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames=1)
-head(tbl)
-dim(tbl)
+# read in the csv file 
+raw_counts <- read.csv("Counts.csv", row.names = 1)
+raw_counts
 
-raw_counts <- read.delim(path, stringsAsFactors=FALSE, sep = " ")
-dim(raw_counts)
-head(raw_counts[,c(1:4)])
 ```
+# Cleaning up data
+```{r}
+rownames(clindata) <- clindata$title
+
+# making sure that names match 
+all(rownames(clindata) %in% colnames(raw_counts))
+
+# picking columns of interest 
+clindata <- clindata[,43:46]
+
+# renaming columns 
+colnames(clindata)[colnames(clindata) == "age:ch1"] <- "age"
+colnames(clindata)[colnames(clindata) == "etiology:ch1"] <- "etiology"
+colnames(clindata)[colnames(clindata) == "race:ch1"] <- "race"
+colnames(clindata)[colnames(clindata) == "Sex:ch1"] <- "sex"
+
+head(clindata)
+
+# create a new categorical column for age, where < 45 is "young", 45 <= x < 65 is "middle", and >= 65 is "old"
+clindata$age_cat <- ifelse(clindata$age < 55, "young", "old")
+
+clindata
+```
+
+
+
 
