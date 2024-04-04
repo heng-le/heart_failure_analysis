@@ -71,10 +71,111 @@ colnames(clindata)[colnames(clindata) == "Sex:ch1"] <- "sex"
 
 head(clindata)
 
-# create a new categorical column for age, where < 45 is "young", 45 <= x < 65 is "middle", and >= 65 is "old"
+# create a new categorical column for age, where < 55 is "young", and >= 55 is "old"
 clindata$age_cat <- ifelse(clindata$age < 55, "young", "old")
 
+# # Stratify age by 10 yr intervals
+# clindata$age_cat <- clindata$`age:ch1`
+# clindata$age_cat[clindata$`age:ch1` < 30] = "< 30"
+# clindata$age_cat[clindata$`age:ch1` >= 30 & clindata$`age:ch1` < 40] ="30s"
+# clindata$age_cat[clindata$`age:ch1` >= 40 & clindata$`age:ch1`< 50] ="40s"
+# clindata$age_cat[clindata$`age:ch1` >= 50 & clindata$`age:ch1` < 60] ="50s"
+# clindata$age_cat[clindata$`age:ch1` >= 60 & clindata$`age:ch1` < 70] ="60s"
+# clindata$age_cat[clindata$`age:ch1` >= 70] ="70+"
+# clindata$age_cat[clindata$`age:ch1` == "Unknown"] = NA
+
 clindata
+```
+```{r}
+# make sure that the grouping variables are factors 
+clindata$etiology <- as.factor(clindata$etiology)
+clindata$race <- as.factor(clindata$race)
+clindata$sex <- as.factor(clindata$sex)
+clindata$age_cat <- as.factor(clindata$age_cat)
+```
+
+#EDA for raw counts
+
+```{r}
+## Check for spread of Genes with > 0 expression across samples
+barplot(table(rowSums(raw_counts>0)))
+abline(v=83, col = "red", lwd=2) #Half of the non-heart-failure samples
+abline(v=ncol(raw_counts)/2, col = "orange", lwd=2) #Half of all samples
+```
+```{r}
+## Only keep genes with >0 expression in half or more samples
+keep <- rowSums(raw_counts > 0) >= ncol(raw_counts)/2
+table(keep) ## So many rows are false! Can throw out these genes
+raw_counts <- raw_counts[keep,]
+dim(raw_counts) #Left with 10,976 genes from 35784 starting genes
+```
+```{r}
+## Now, let's remove samples with >70% of genes with 0 counts - poor samples
+## see how many genes per sample have 0 reads
+zero <- colSums(raw_counts == 0)/nrow(raw_counts) #proportion of genes with 0 expression per sample
+hist(zero, breaks = 50)
+abline(v = 0.7, col="red") #line at samples with 70% gene with 0 counts
+# in this case, the maximum proportion of genes with 0 counts is 0.32
+summary(zero)
+```
+```{r}
+#select only those samples with less than 70% of genes with zero
+good_samples <- zero <0.7
+raw_counts <- raw_counts[,good_samples]
+dim(raw_counts) 
+
+# this step isn't really needed given that all the samples have less than 70% of genes with zero
+# but, we just add it in for clarity
+
+```
+```{r}
+## We must filter clindata to retain only good samples too
+dim(clindata)  ## info on original 484 samples
+common_names= intersect(rownames(clindata), colnames(raw_counts))
+clindata = clindata[rownames(clindata) %in% common_names,]
+dim(clindata)
+
+# Again, not needed but added for clarity
+```
+```{r}
+## Confirm the rownames of clindata & colnames of expressiondata match
+all(rownames(clindata) %in% colnames(raw_counts)) ## Confirm if names match
+all(colnames(raw_counts) %in% rownames(clindata))
+```
+
+
+```{r}
+boxplot(log2(raw_counts+1)[,1:40], main = "Raw Counts",
+        ylab="log2(Raw Counts+1)", cex = 0.6)
+```
+```{r}
+# creating a DESeq2 object
+dds <- DESeqDataSetFromMatrix(countData = raw_counts, 
+                              colData = clindata,    
+                              design = ~1)   
+dds
+```
+```{r}
+vsd <- vst(dds) 
+vsd.dat <- as.data.frame(assay(vsd))
+head(vsd.dat)[,1:4]
+```
+
+# PCA Analysis
+```{r}
+plotPCA(vsd, intgroup=c("race","etiology")) 
+```
+```{r}
+pc_vsd <- prcomp(t(vsd.dat)) ## Don't forget to transpose your data!
+pc.var <- pc_vsd$sdev^2
+pc.var.per <- round(pc.var/sum(pc.var)*100,1) #also rounding off the percentage to 1 decimal
+head(pc.var.per)
+```
+```{r}
+ggscreeplot(pc_vsd)+
+  geom_col(fill = 'cornflowerblue') + 
+  geom_line()+
+  theme_bw()
 ```
 
 
