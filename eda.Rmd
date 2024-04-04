@@ -64,6 +64,7 @@ all(rownames(clindata) %in% colnames(raw_counts))
 clindata <- clindata[,43:46]
 
 # renaming columns 
+#control for age in model + etiology
 colnames(clindata)[colnames(clindata) == "age:ch1"] <- "age"
 colnames(clindata)[colnames(clindata) == "etiology:ch1"] <- "etiology"
 colnames(clindata)[colnames(clindata) == "race:ch1"] <- "race"
@@ -71,10 +72,17 @@ colnames(clindata)[colnames(clindata) == "Sex:ch1"] <- "sex"
 
 head(clindata)
 
-# create a new categorical column for age, where < 45 is "young", 45 <= x < 65 is "middle", and >= 65 is "old"
+# create a new categorical column for age, where < 55 is "young" and >= 55 is "old"
 clindata$age_cat <- ifelse(clindata$age < 55, "young", "old")
 
 clindata
+
+#research question: effects of age/sex + gene expression on etiology?
+#either control or use interaction term
+#examples:
+#what are the DEGs for dilated cardiomyopathy?
+#are older people more susceptible to dilated cardiomyopathy?
+#as long as they are distributed across control and treatment, doesn't have to be equal
 ```
 
 
