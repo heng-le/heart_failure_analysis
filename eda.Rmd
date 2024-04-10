@@ -103,7 +103,7 @@ abline(v=83, col = "red", lwd=2) #Half of the non-heart-failure samples
 abline(v=ncol(raw_counts)/2, col = "orange", lwd=2) #Half of all samples
 ```
 ```{r}
-## Only keep genes with >0 expression in half or more samples
+## Only keep genes with > 0 expression in half or more samples
 keep <- rowSums(raw_counts > 0) >= ncol(raw_counts)/2
 table(keep) ## So many rows are false! Can throw out these genes
 raw_counts <- raw_counts[keep,]
@@ -160,10 +160,33 @@ vsd <- vst(dds)
 vsd.dat <- as.data.frame(assay(vsd))
 head(vsd.dat)[,1:4]
 ```
+```{r}
+pc_vsd <- prcomp(t(vsd.dat)) 
+pc.var <- pc_vsd$sdev^2
+pc.var.per <- round(pc.var/sum(pc.var)*100,1) #also rounding off the percentage to 1 decimal
+head(pc.var.per)
 
 # PCA Analysis
+ggscreeplot(pc_vsd)+
+  geom_col(fill = 'cornflowerblue') + 
+  geom_line()+
+  theme_bw()
+
+pc.data <- as.data.frame(pc_vsd$x)
+df_pc <- cbind(clindata, pc.data) # Let's cbind to original df so we have metadata
+head(df_pc)[1:10]
+```
 ```{r}
-plotPCA(vsd, intgroup=c("race","etiology")) 
+ggplot(df_pc, aes(x = PC1, y = PC2, label = row.names(df_pc),color = etiology))+
+  #geom_text()+ ##Uncomment If you wanna check which is the outlier
+  geom_point(size=2)+
+  xlim(c(-150,150))+ ylim(c(-50,50))+
+  theme_bw()
+
+```
+
+```{r}
+plotPCA(vsd, intgroup=c("age_cat"))
 ```
 ```{r}
 pc_vsd <- prcomp(t(vsd.dat)) ## Don't forget to transpose your data!
