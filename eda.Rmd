@@ -155,6 +155,8 @@ dds <- DESeqDataSetFromMatrix(countData = raw_counts,
                               design = ~1)   
 dds
 ```
+
+
 ```{r}
 vsd <- vst(dds) 
 vsd.dat <- as.data.frame(assay(vsd))
@@ -176,8 +178,9 @@ pc.data <- as.data.frame(pc_vsd$x)
 df_pc <- cbind(clindata, pc.data) # Let's cbind to original df so we have metadata
 head(df_pc)[1:10]
 ```
+
 ```{r}
-ggplot(df_pc, aes(x = PC1, y = PC2, label = row.names(df_pc),color = etiology))+
+ggplot(df_pc, aes(x = PC1, y = PC2, label = row.names(df_pc),color = sex))+
   #geom_text()+ ##Uncomment If you wanna check which is the outlier
   geom_point(size=2)+
   xlim(c(-150,150))+ ylim(c(-50,50))+
@@ -194,6 +197,7 @@ pc.var <- pc_vsd$sdev^2
 pc.var.per <- round(pc.var/sum(pc.var)*100,1) #also rounding off the percentage to 1 decimal
 head(pc.var.per)
 ```
+
 ```{r}
 ggscreeplot(pc_vsd)+
   geom_col(fill = 'cornflowerblue') + 
