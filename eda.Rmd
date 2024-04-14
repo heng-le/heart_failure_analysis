@@ -29,6 +29,7 @@ data$GSE141910_series_matrix.txt.gz@experimentData
 clindata <- data[["GSE141910_series_matrix.txt.gz"]]@phenoData@data
 dim(clindata)
 colnames(clindata)
+clindata
 ```
 
 ```{r}
@@ -168,7 +169,7 @@ pc.var <- pc_vsd$sdev^2
 pc.var.per <- round(pc.var/sum(pc.var)*100,1) #also rounding off the percentage to 1 decimal
 head(pc.var.per)
 
-# PCA Analysis
+# PCA Analysis scree plot
 ggscreeplot(pc_vsd)+
   geom_col(fill = 'cornflowerblue') + 
   geom_line()+
@@ -180,7 +181,7 @@ head(df_pc)[1:10]
 ```
 
 ```{r}
-ggplot(df_pc, aes(x = PC1, y = PC2, label = row.names(df_pc),color = sex))+
+ggplot(df_pc, aes(x = PC1, y = PC2, label = row.names(df_pc),color = age_cat))+
   #geom_text()+ ##Uncomment If you wanna check which is the outlier
   geom_point(size=2)+
   xlim(c(-150,150))+ ylim(c(-50,50))+
@@ -203,6 +204,47 @@ ggscreeplot(pc_vsd)+
   geom_col(fill = 'cornflowerblue') + 
   geom_line()+
   theme_bw()
+```
+```{r}
+head(clindata)
+# there are only several possible factors of interest: age, sex, race, etiology 
+clindata %>%
+  group_by(sex, etiology) %>%
+  dplyr::summarise(frequency = n()) 
+
+# looking at the numbers, we think that the groups are relatively well-balanced for our diseases of interest
+```
+```{r}
+ddsbat <- DESeqDataSetFromMatrix(raw_counts,
+                                  colData = clindata,
+                                  design = ~ etiology + sex)
+ddsbat <- DESeq(ddsbat)
+resultsNames(ddsbat)
+
+resbat <- results(ddsbat)
+resbat <- resbat[order(resbat$padj),]
+resbat
+summary(resbat) 
+
+
+
+# EnhancedVolcano(resbat, x = "log2FoldChange", y="pvalue",  #unshrunken lfc
+#                 lab = rownames(resbat), 
+#                 selectLab = c('CXCL9','ISG15','SERPING5','GBP5','CXCL10',  # top 5up DEG
+#                               'H1-4','NCDN','PBX1','HTATSF1','TYROBP',  # top 5 down DEG
+#                               'MX1','MX2','ACE2','BSG','CTSB'),          # genes of interest
+#                 FCcutoff = 1, pCutoff = 0.05, 
+#                 #ylim= c(0,10), xlim=c(-5,5),
+#                 pointSize = 1.5, col=c('grey30', 'red3', 'red3', 'red3'),
+#                 boxedLabels = TRUE,
+#                 drawConnectors = TRUE,
+#                 widthConnectors = 0.75,
+#                 legendPosition = 'bottom',
+#                 title = "postivity_COVID19_vs_Healthy",
+#                 subtitle = "design ~ batch + gender + positivity") 
+# 
+# ## Let's also see what's happening with the pvalues & FDR
+# hist(resbat$pvalue, breaks = 0:20/20, col = "grey50", border = "white") ## So few
 ```
 
 

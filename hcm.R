@@ -129,11 +129,11 @@ resbat <- na.omit(resbat)
 
 # finding the top up/downregulated genes
 # For statistically significant upregulated genes
-top_upregulated_significant <- resbat[resbat$padj <= 0.05 & resbat$log2FoldChange > 0, ]
+top_upregulated_significant <- resbat[resbat$padj <= 0.05 & resbat$log2FoldChange > 1, ]
 top_upregulated_significant <- top_upregulated_significant[order(top_upregulated_significant$log2FoldChange, decreasing = TRUE), ][1:5, ]
 
 # For statistically significant downregulated genes
-top_downregulated_significant <- resbat[resbat$padj <= 0.05 & resbat$log2FoldChange < 0, ]
+top_downregulated_significant <- resbat[resbat$padj <= 0.05 & resbat$log2FoldChange < -1, ]
 top_downregulated_significant <- top_downregulated_significant[order(top_downregulated_significant$log2FoldChange, decreasing = FALSE), ][1:5, ]
 
 # using biomart to find out gene names 
@@ -173,3 +173,44 @@ EnhancedVolcano(resbat, x = "log2FoldChange", y="pvalue",  #unshrunken lfc
 ## Let's also see what's happening with the pvalues & FDR
 hist(resbat$pvalue, breaks = 0:20/20, col = "grey50", border = "white") ## So few
 
+
+#################################
+# Now, let's move on to GO analysis 
+library(clusterProfiler)
+library(org.Hs.eg.db)
+# read in the annotations
+annotations <- read.csv("annotations.csv")
+
+# making a new column in resbat
+resbat$genes <- row.names(resbat)
+
+# making it a dataframe
+resbat <- as.data.frame(resbat)
+res_ids <- inner_join(resbat, annotations, by=c("genes"="gene_id"))    
+
+allOE_genes <- as.character(res_ids$genes)
+head(allOE_genes)
+
+
+## Extract significant results
+sigOE <- dplyr::filter(res_ids, padj < 0.05)
+sigOE
+sigOE_genes <- as.character(sigOE$genes)
+head(sigOE_genes)
+
+
+## Run GO enrichment analysis 
+ego <- enrichGO(gene = sigOE_genes,      #significant gene list
+                universe = allOE_genes,  #background gene list
+                keyType = "ENSEMBL",     #geneID type
+                OrgDb = org.Hs.eg.db,    #GO is organism specific
+                ont = "ALL",              #GO options: BP/MF/CC/ALL (for all three)
+                pAdjustMethod = "BH",    # choosing type of multiple testing adjustment
+                qvalueCutoff = 0.05, 
+                readable = TRUE)
+
+
+cluster_summary <- data.frame(ego)
+
+#let's look at some columns of the first GO term returned
+t(cluster_summary[1,c(1:4,9)])
