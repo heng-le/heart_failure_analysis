@@ -1,4 +1,3 @@
-#Library Installation ####
 # installing relevant libaries 
 library(tidyverse)
 library(ggplot2)
@@ -9,7 +8,6 @@ library(EnhancedVolcano)
 library(apeglm)
 library(biomaRt)
 
-# Working with metadata ####
 
 # finding metadata on series
 data <- getGEO("GSE141910")
@@ -23,7 +21,7 @@ t(clindata[1,])
 exp <- data[["GSE141910_series_matrix.txt.gz"]]@assayData$exprs
 
 # read in the csv file 
-raw_counts <- read.csv("~/Documents/GitHub/heart_failure_analysis/Counts.csv", row.names = 1)
+raw_counts <- read.csv("Counts.csv", row.names = 1)
 
 rownames(clindata) <- clindata$title
 
@@ -45,7 +43,7 @@ head(clindata)
 clindata$age_cat <- ifelse(clindata$age < 55, "young", "old")
 
 # make sure that the grouping variables are factors 
-clindata$etiology <- as.factor(clindata$etiology, levels = c("Non-Failing Donor", "Hypertrophic cardiomyopathy (HCM)"))
+clindata$etiology <- as.factor(clindata$etiology)
 clindata$race <- as.factor(clindata$race)
 clindata$sex <- as.factor(clindata$sex)
 clindata$age_cat <- as.factor(clindata$age_cat)
@@ -60,8 +58,6 @@ table(keep) ## So many rows are false! Can throw out these genes
 raw_counts <- raw_counts[keep,]
 dim(raw_counts) #Left with 10,976 genes from 35784 starting genes
 
-
-#Exploratory Data Analysis ####
 ## Now, let's remove samples with >70% of genes with 0 counts - poor samples
 ## see how many genes per sample have 0 reads
 zero <- colSums(raw_counts == 0)/nrow(raw_counts) #proportion of genes with 0 expression per sample
@@ -75,15 +71,15 @@ raw_counts <- raw_counts[,good_samples]
 
 
 # subset the clindata for control and hcm
-clindata_hcm <- clindata[clindata$etiology %in% c("Non-Failing Donor","Hypertrophic cardiomyopathy (HCM)"),]
-clindata_hcm$etiology <- factor(clindata_hcm$etiology, levels = c("Non-Failing Donor", "Hypertrophic cardiomyopathy (HCM)"))
+clindata_hcm <- clindata[clindata$etiology %in% c("Non-Failing Donor", "Dilated cardiomyopathy (DCM)"),]
+
 # then, subset the raw_counts based on the clindata
 raw_counts_hcm <- raw_counts[,colnames(raw_counts) %in% rownames(clindata_hcm)]
 
 # now, perform pca on this data
 dds_hcm <- DESeqDataSetFromMatrix(countData = raw_counts_hcm,, 
-                                  colData = clindata_hcm,    
-                                  design = ~1)   
+                              colData = clindata_hcm,    
+                              design = ~1)   
 vsd_hcm <- vst(dds_hcm) 
 vsd.dat_hcm <- as.data.frame(assay(vsd_hcm))
 pc_vsd_hcm <- prcomp(t(vsd.dat_hcm)) 
@@ -102,7 +98,7 @@ df_pc_hcm <- cbind(clindata_hcm, pc.data_hcm) # Let's cbind to original df so we
 head(df_pc_hcm)[1:10]
 
 # PCA plot
-ggplot(df_pc_hcm, aes(x = PC3, y = PC4, label = row.names(df_pc_hcm),color = etiology))+
+ggplot(df_pc_hcm, aes(x = PC1, y = PC2, label = row.names(df_pc_hcm),color = etiology))+
   #geom_text()+ ##Uncomment If you wanna check which is the outlier
   geom_point(size=2)+
   xlim(c(-150,150))+ ylim(c(-50,50))+
@@ -115,7 +111,7 @@ ggplot(df_pc_hcm, aes(x = PC3, y = PC4, label = row.names(df_pc_hcm),color = eti
 
 ddsbat <- DESeqDataSetFromMatrix(raw_counts_hcm,
                                  colData = clindata_hcm,
-                                 design = ~ etiology + sex + race + age_cat + etiology:sex)
+                                 design = ~ etiology + sex + etiology:sex)
 
 # we added an interaction term since we want to test whether the effect of sex varies significantly between the two heart conditions 
 
@@ -124,58 +120,43 @@ ddsbat <- DESeq(ddsbat)
 resultsNames(ddsbat)
 
 resbat <- results(ddsbat)
-resbat_et <- results(ddsbat, name = "etiology_Hypertrophic.cardiomyopathy..HCM._vs_Non.Failing.Donor")
-resbat_sex <- results(ddsbat, name = "sex_Male_vs_Female")
-resbat_race <- results(ddsbat, name = "race_Caucasian_vs_African.American")
-resbat_age <- results(ddsbat, name = "age_cat_young_vs_old")
-resbat_interaction <- results(ddsbat, name = "etiologyHypertrophic.cardiomyopathy..HCM..sexMale")
-#assume no interaction
-#combining the two resbats will add up log fold changes 
-
-
-summary(resbat_et)
-summary(resbat_sex)
-summary(resbat_race)
-summary(resbat_age)
-summary(resbat_interaction)
-
-resbat_et <- resbat_et[order(resbat_et$padj),]
-resbat_et
-summary(resbat_et) 
+resbat <- resbat[order(resbat$padj),]
+resbat
+summary(resbat) 
 
 # removing all rows with NA 
-resbat_et <- na.omit(resbat_et)
+resbat <- na.omit(resbat)
 
 # finding the top up/downregulated genes
 # For statistically significant upregulated genes
-top_upregulated_significant <- resbat_et[resbat_et$padj <= 0.05 & resbat_et$log2FoldChange > 1,]
+top_upregulated_significant <- resbat[resbat$padj <= 0.05 & resbat$log2FoldChange > 1, ]
 top_upregulated_significant <- top_upregulated_significant[order(top_upregulated_significant$log2FoldChange, decreasing = TRUE), ][1:5, ]
 
 # For statistically significant downregulated genes
-top_downregulated_significant <- resbat_et[resbat_et$padj <= 0.05 & resbat_et$log2FoldChange < -1, ]
+top_downregulated_significant <- resbat[resbat$padj <= 0.05 & resbat$log2FoldChange < -1, ]
 top_downregulated_significant <- top_downregulated_significant[order(top_downregulated_significant$log2FoldChange, decreasing = FALSE), ][1:5, ]
 
 # using biomart to find out gene names 
 ensembl <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl", mirror = 'asia')
 downregulated_genes <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"),
-                             filters = "ensembl_gene_id",
-                             values = rownames(top_downregulated_significant),
-                             mart = ensembl)
+               filters = "ensembl_gene_id",
+               values = rownames(top_downregulated_significant),
+               mart = ensembl)
 
 upregulated_genes <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"),
-                           filters = "ensembl_gene_id",
-                           values = rownames(top_upregulated_significant),
-                           mart = ensembl)
+                             filters = "ensembl_gene_id",
+                             values = rownames(top_upregulated_significant),
+                             mart = ensembl)
 
 upregulated_genes
 downregulated_genes
 
-resbat_et
+resbat
 
-# upregulated: FMO5, AGTR2
-# downregulated: TDRD9
+# upregulated: FMO5, ADAMTS16, OVOS2, IGHGP
+# downregulated: UPK1B, PRG4, CXCL1, CFB, ANKRD26P1
 
-EnhancedVolcano(resbat_et, x = "log2FoldChange", y="pvalue",  #unshrunken lfc
+EnhancedVolcano(resbat, x = "log2FoldChange", y="pvalue",  #unshrunken lfc
                 lab = rownames(resbat),
                 selectLab = c('FMO5','ADAMTS16','OVOS2','IGHGP','UPK1B',  # top 5up DEG
                               'PRG4','CXCL1','CFB','ANKRD26P1'),          # genes of interest
@@ -190,7 +171,7 @@ EnhancedVolcano(resbat_et, x = "log2FoldChange", y="pvalue",  #unshrunken lfc
                 subtitle = "~ etiology + sex + etiology:sex")
 
 ## Let's also see what's happening with the pvalues & FDR
-hist(resbat_et$pvalue, breaks = 0:20/20, col = "grey50", border = "white") ## So few
+hist(resbat$pvalue, breaks = 0:20/20, col = "grey50", border = "white") ## So few
 
 
 #################################
@@ -198,21 +179,21 @@ hist(resbat_et$pvalue, breaks = 0:20/20, col = "grey50", border = "white") ## So
 library(clusterProfiler)
 library(org.Hs.eg.db)
 # read in the annotations
-annotations <- read.csv("~/Documents/GitHub/heart_failure_analysis/annotations.csv")
+annotations <- read.csv("annotations.csv")
 
 # making a new column in resbat
-resbat_et$genes <- row.names(resbat_et)
+resbat$genes <- row.names(resbat)
 
 # making it a dataframe
-resbat_et <- as.data.frame(resbat_et)
-res_ids <- inner_join(resbat_et, annotations, by=c("genes"="gene_id"))    
+resbat <- as.data.frame(resbat)
+res_ids <- inner_join(resbat, annotations, by=c("genes"="gene_id"))    
 
 allOE_genes <- as.character(res_ids$genes)
 head(allOE_genes)
 
 
 ## Extract significant results
-sigOE <- dplyr::filter(res_ids, padj < 0.05 & log2FoldChange > 1)
+sigOE <- dplyr::filter(res_ids, padj < 0.05)
 sigOE
 sigOE_genes <- as.character(sigOE$genes)
 head(sigOE_genes)
@@ -223,7 +204,7 @@ ego <- enrichGO(gene = sigOE_genes,      #significant gene list
                 universe = allOE_genes,  #background gene list
                 keyType = "ENSEMBL",     #geneID type
                 OrgDb = org.Hs.eg.db,    #GO is organism specific
-                ont = "BP",              #GO options: BP/MF/CC/ALL (for all three)
+                ont = "ALL",              #GO options: BP/MF/CC/ALL (for all three)
                 pAdjustMethod = "BH",    # choosing type of multiple testing adjustment
                 qvalueCutoff = 0.05, 
                 readable = TRUE)
@@ -233,5 +214,3 @@ cluster_summary <- data.frame(ego)
 
 #let's look at some columns of the first GO term returned
 t(cluster_summary[1,c(1:4,9)])
-t(cluster_summary[2,c(1:4,9)])
-t(cluster_summary[3,c(1:4,9)])
