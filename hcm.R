@@ -45,7 +45,7 @@ head(clindata)
 clindata$age_cat <- ifelse(clindata$age < 55, "young", "old")
 
 # make sure that the grouping variables are factors 
-clindata$etiology <- as.factor(clindata$etiology, levels = c("Non-Failing Donor", "Hypertrophic cardiomyopathy (HCM)"))
+clindata$etiology <- as.factor(clindata$etiology)
 clindata$race <- as.factor(clindata$race)
 clindata$sex <- as.factor(clindata$sex)
 clindata$age_cat <- as.factor(clindata$age_cat)
@@ -235,3 +235,74 @@ cluster_summary <- data.frame(ego)
 t(cluster_summary[1,c(1:4,9)])
 t(cluster_summary[2,c(1:4,9)])
 t(cluster_summary[3,c(1:4,9)])
+
+
+dotplot(ego, showCategory=20)
+
+OE_foldchanges <- sigOE$log2FoldChange
+names(OE_foldchanges) <- sigOE$gene
+cnetplot(ego, 
+         categorySize="pvalue", 
+         showCategory = 5, 
+         foldChange=OE_foldchanges, 
+         vertex.label.font=6)
+
+###------------------------------------------------------------------------------
+
+### Functional Class Scoring / Gene Set Enrichment Analysis (GSEA)
+
+## You need then entire gene list analysis with a ranking statistic (preferably logFC, or pvalue)
+## Usually run on pathway databases like KEGG/Reactome. But can be run on any gene set database.
+
+## Let's run GSEA using GO BP to see if it looks different
+
+# create a gene list using log2FC - it needs to be a named vector
+res_ids <- dplyr::filter(res_ids, genes != "NA") ## remove any NAs
+fc_ensembl <- res_ids$log2FoldChange ### Extract the foldchanges
+names(fc_ensembl) <- res_ids$genes ### Name each fold change with the corresponding GeneID
+fc_ensembl <- sort(fc_ensembl, decreasing = TRUE) ### Sort fold changes in decreasing order
+head(fc_ensembl)
+
+gseGO <- gseGO(geneList      = fc_ensembl,
+               OrgDb        = org.Hs.eg.db,
+               ont          = "BP",
+               keyType      = "ENSEMBL",
+               minGSSize    = 100,
+               maxGSSize    = 500,
+               pvalueCutoff = 0.05,
+               verbose      = FALSE)
+
+gseGO_res <- gseGO@result ## Extract the GSEA results
+head(gseGO_res)
+gseaplot(gseGO, geneSetID = 'GO:0006631')
+gseaplot(gseGO, geneSetID = 'GO:0002250')
+#conclusion: for patients with HCM, genes related to the modulation of chemical synaptic transmission are upregulated
+
+# You can explore if & how the ORA & GSEA results differ
+
+#### GSEA using KEGG
+
+# KEGG requires Entrez IDs. Let's get the gene list for it
+
+## Remove any NA values (reduces the data by quite a bit)
+res_entrez <- dplyr::filter(res_ids, entrezid != "NA")
+## Remove any Entrez duplicates
+res_entrez <- res_entrez[which(duplicated(res_entrez$entrezid) == F), ]
+foldchanges <- res_entrez$log2FoldChange ### Extract the foldchanges
+names(foldchanges) <- res_entrez$entrezid ### Name each fold change
+foldchanges <- sort(foldchanges, decreasing = TRUE) ### Sort fold changes in decreasing order
+head(foldchanges)
+
+## GSEA using gene sets from KEGG pathways
+gseaKEGG <- gseKEGG(geneList = foldchanges, # ordered named vector of fold changes (Entrez IDs are the associated names)
+                    organism = "hsa", # supported organisms in KEGG
+                    minGSSize = 120,  # minimum gene set size (# genes in set) - change to test more sets or recover sets with fewer # genes
+                    pvalueCutoff = 0.05, # padj cutoff value
+                    verbose = FALSE)
+
+## Extract the GSEA results
+gseaKEGG_results <- gseaKEGG@result
+
+## Write GSEA results to file
+View(gseaKEGG_results)
+write.csv(gseaKEGG_results, "gsea_kegg.csv", quote=F)
