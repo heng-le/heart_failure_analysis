@@ -81,7 +81,7 @@ clindata_hcm$etiology <- factor(clindata_hcm$etiology, levels = c("Non-Failing D
 raw_counts_hcm <- raw_counts[,colnames(raw_counts) %in% rownames(clindata_hcm)]
 
 # now, perform pca on this data
-dds_hcm <- DESeqDataSetFromMatrix(countData = raw_counts_hcm,, 
+dds_hcm <- DESeqDataSetFromMatrix(countData = raw_counts_hcm,
                                   colData = clindata_hcm,    
                                   design = ~1)   
 vsd_hcm <- vst(dds_hcm) 
@@ -115,7 +115,7 @@ ggplot(df_pc_hcm, aes(x = PC3, y = PC4, label = row.names(df_pc_hcm),color = eti
 
 ddsbat <- DESeqDataSetFromMatrix(raw_counts_hcm,
                                  colData = clindata_hcm,
-                                 design = ~ etiology + sex + race + age_cat + etiology:sex)
+                                 design = ~ etiology + sex)
 
 # we added an interaction term since we want to test whether the effect of sex varies significantly between the two heart conditions 
 
@@ -126,18 +126,13 @@ resultsNames(ddsbat)
 resbat <- results(ddsbat)
 resbat_et <- results(ddsbat, name = "etiology_Hypertrophic.cardiomyopathy..HCM._vs_Non.Failing.Donor")
 resbat_sex <- results(ddsbat, name = "sex_Male_vs_Female")
-resbat_race <- results(ddsbat, name = "race_Caucasian_vs_African.American")
-resbat_age <- results(ddsbat, name = "age_cat_young_vs_old")
-resbat_interaction <- results(ddsbat, name = "etiologyHypertrophic.cardiomyopathy..HCM..sexMale")
 #assume no interaction
 #combining the two resbats will add up log fold changes 
 
 
 summary(resbat_et)
 summary(resbat_sex)
-summary(resbat_race)
-summary(resbat_age)
-summary(resbat_interaction)
+
 
 resbat_et <- resbat_et[order(resbat_et$padj),]
 resbat_et
@@ -149,11 +144,11 @@ resbat_et <- na.omit(resbat_et)
 # finding the top up/downregulated genes
 # For statistically significant upregulated genes
 top_upregulated_significant <- resbat_et[resbat_et$padj <= 0.05 & resbat_et$log2FoldChange > 1,]
-top_upregulated_significant <- top_upregulated_significant[order(top_upregulated_significant$log2FoldChange, decreasing = TRUE), ][1:5, ]
+top_upregulated_significant <- top_upregulated_significant[order(top_upregulated_significant$log2FoldChange, decreasing = TRUE), ][1:5,]
 
 # For statistically significant downregulated genes
 top_downregulated_significant <- resbat_et[resbat_et$padj <= 0.05 & resbat_et$log2FoldChange < -1, ]
-top_downregulated_significant <- top_downregulated_significant[order(top_downregulated_significant$log2FoldChange, decreasing = FALSE), ][1:5, ]
+top_downregulated_significant <- top_downregulated_significant[order(top_downregulated_significant$log2FoldChange, decreasing = FALSE), ][1:5,]
 
 # using biomart to find out gene names 
 ensembl <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl", mirror = 'asia')
@@ -172,22 +167,21 @@ downregulated_genes
 
 resbat_et
 
-# upregulated: FMO5, AGTR2
-# downregulated: TDRD9
+# upregulated: BIRC7, SLC1A7, PLD4, AGTR2, TMEM229A
+# downregulated: IL1RL1, SAA2, VWA5B1, LCN15, UMODL1-AS1
 
 EnhancedVolcano(resbat_et, x = "log2FoldChange", y="pvalue",  #unshrunken lfc
-                lab = rownames(resbat),
-                selectLab = c('FMO5','ADAMTS16','OVOS2','IGHGP','UPK1B',  # top 5up DEG
-                              'PRG4','CXCL1','CFB','ANKRD26P1'),          # genes of interest
+                lab = rownames(resbat_et),    
                 FCcutoff = 1, pCutoff = 0.05,
                 #ylim= c(0,10), xlim=c(-5,5),
+                selectLab = c("HJHJH"),
                 pointSize = 0.5, col=c('grey30', 'red3', 'red3', 'red3'),
                 boxedLabels = TRUE,
                 drawConnectors = TRUE,
                 widthConnectors = 0.75,
                 legendPosition = 'bottom',
-                title = "control_vs_dcm",
-                subtitle = "~ etiology + sex + etiology:sex")
+                title = "Control vs Hypertrophic Cardiomyopathy (HCM)",
+                subtitle = "~ etiology + sex")
 
 ## Let's also see what's happening with the pvalues & FDR
 hist(resbat_et$pvalue, breaks = 0:20/20, col = "grey50", border = "white") ## So few
@@ -212,7 +206,7 @@ head(allOE_genes)
 
 
 ## Extract significant results
-sigOE <- dplyr::filter(res_ids, padj < 0.05 & log2FoldChange > 1)
+sigOE <- dplyr::filter(res_ids, padj < 0.05 & (log2FoldChange > 1 | log2FoldChange < -1))
 sigOE
 sigOE_genes <- as.character(sigOE$genes)
 head(sigOE_genes)
@@ -274,8 +268,10 @@ gseGO <- gseGO(geneList      = fc_ensembl,
 
 gseGO_res <- gseGO@result ## Extract the GSEA results
 head(gseGO_res)
-gseaplot(gseGO, geneSetID = 'GO:0006631')
+#1 
 gseaplot(gseGO, geneSetID = 'GO:0002250')
+#2
+gseaplot(gseGO, geneSetID = 'GO:0007059')
 #conclusion: for patients with HCM, genes related to the modulation of chemical synaptic transmission are upregulated
 
 # You can explore if & how the ORA & GSEA results differ
@@ -306,3 +302,84 @@ gseaKEGG_results <- gseaKEGG@result
 ## Write GSEA results to file
 View(gseaKEGG_results)
 write.csv(gseaKEGG_results, "gsea_kegg.csv", quote=F)
+
+## Visualizing the GSEA results
+## Plot the GSEA plot for a single enriched pathway, `hsa03040`
+gseaplot(gseaKEGG, geneSetID = 'hsa04514')
+
+# QUESTION: Is this a positively or negatively enriched pathway?
+
+## We want to look into details of the pathway
+# Use the Pathview R package to integrate the KEGG pathway data from clusterProfiler into pathway images
+
+detach("package:dplyr", unload=TRUE) # first unload dplyr to avoid conflicts
+
+library(pathview)
+## Output images for a single significant KEGG pathway
+pathview(gene.data = foldchanges,
+         pathway.id = "hsa04514",
+         species = "hsa")
+
+## QUESTION: What conclusions can you make from this image?
+
+# Lets try visualize another pathway
+pathview(gene.data = foldchanges,
+         pathway.id = "hsa04080",
+         species = "hsa",
+         limit = list(gene = 2, # value gives the max/min limit for foldchanges
+                      cpd = 1))
+
+#ClIP-Seq Analysis ####
+# RBP - SRSF1 Analysis
+srsf1 <- read.csv("~/Documents/GitHub/heart_failure_analysis/srsf1_binding_rbp.csv", header = T)
+# plot distribution of binding site records
+hist(srsf1$Binding.site.records, breaks = 200, col = "grey50", border = "white", xlim = c(0, 1000))
+summary(srsf1$Binding.site.records)
+# finding out the 95th and 99th percentile
+quantile(srsf1$Binding.site.records, c(0.95, 0.99))
+# filter out the top 5% of binding sites
+srsf1_top5 <- srsf1[srsf1$Binding.site.records > 273,]
+hist(srsf1_top5$Binding.site.records, breaks = 200, col = "grey50", border = "white", xlim = c(0, 1000))
+
+# find out if any of the genes that are differentially expressed overlaps here
+srsf1_genes <- srsf1_top5$Target.gene.ID
+
+# combine upregulated and downregulated genes
+all_genes <- c(rownames(top_upregulated_significant), rownames(top_downregulated_significant))
+# overlap
+overlap <- intersect(all_genes, srsf1_genes)
+
+# convert overlap from ensembl to gene names
+overlap_genes <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"),
+                       filters = "ensembl_gene_id",
+                       values = overlap,
+                       mart = ensembl)
+overlap_genes
+
+# perform gene ontology
+ego_overlap <- enrichGO(gene = overlap_genes$ensembl_gene_id,      #significant gene list
+                        universe = allOE_genes,  #background gene list
+                        keyType = "ENSEMBL",     #geneID type
+                        OrgDb = org.Hs.eg.db,    #GO is organism specific
+                        ont = "BP",              #GO options: BP/MF/CC/ALL (for all three)
+                        pAdjustMethod = "BH",    # choosing type of multiple testing adjustment
+                        qvalueCutoff = 0.05, 
+                        readable = TRUE)
+
+cluster_summary_clip <- data.frame(ego_overlap)
+
+#let's look at some columns of the first GO term returned
+t(cluster_summary_clip[1,c(1:4,9)])
+t(cluster_summary_clip[2,c(1:4,9)])
+t(cluster_summary_clip[3,c(1:4,9)])
+
+
+dotplot(ego_overlap, showCategory=20)
+
+OE_foldchanges <- sigOE$log2FoldChange
+names(OE_foldchanges) <- sigOE$gene
+cnetplot(ego, 
+         categorySize="pvalue", 
+         showCategory = 5, 
+         foldChange=OE_foldchanges, 
+         vertex.label.font=6)
